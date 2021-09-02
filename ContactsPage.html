@@ -1,0 +1,169 @@
+{% include 'Wrapper AJAX template' %}
+{% fetchxml fetchResult %}
+  <fetch>
+    <entity name="contact">
+      <attribute name="firstname" />
+      <attribute name="lastname" />
+      <attribute name="emailaddress1" />
+      <attribute name="telephone1" />
+      <attribute name="contactid" />
+      <filter>
+        <condition attribute="emailaddress1" operator="not-null" />
+      </filter>
+    </entity>
+  </fetch>
+{% endfetchxml %}
+
+<button id="createButton" onclick="create()" type="button" class="btn btn-primary">Create</button>
+<div id="statusMessageField" class="alert alert-warning" role="alert"><span></span></div>
+
+<table style="border:1px solid">
+    <thead class="thead-dark">
+        <tr>
+            <th>Name</th>
+            <th>Surname</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Controls</th>
+        </tr>
+    </thead>
+    {% for each element in fetchResult.results.entities %}
+    <tr id="{{element.contactid}}" class="test">
+        <th class="row-data">
+            <div class="form-group">
+                <input id="firstname|{{element.contactid}}" type="text" value="{{element.firstname}}" class="form-control" onchange="validate('name')"/>
+            </div>
+        </th>
+        <th>
+            <div class="form-group">
+                <input id="lastname|{{element.contactid}}" type="text" value="{{element.lastname}}" class="form-control" onchange="validate('name')"/>
+            </div>
+        </th>
+        <th>
+            <div class="form-group">
+                <input id="email|{{element.contactid}}" type="text" value="{{element.emailaddress1}}" class="form-control" onchange="validate('email')"/>
+            </div>
+        </th>
+        <th>
+            <div class="form-group">
+                <input id="phone|{{element.contactid}}" type="text" value="{{element.telephone1}}" class="form-control" onchange="validate('phone')"/>
+            </div>
+        </th>        
+        <th>
+            <div class="form-group">
+                <button  onclick="update(this)" id="updateButton" type="button" class="btn btn-success btn-sm" style="vertical-align: top;">Update</button>
+                <button onclick="del(this)" type="button" class="btn btn-danger btn-sm">Delete</button>
+            </div>
+
+        </tr>
+    {% endfor %}
+</table>
+
+<script>
+    src="https://code.jquery.com/jquery-3.6.0.min.js"
+    integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+    crossorigin="anonymous">
+</script>
+
+<script> 
+     function create(){
+        let newUser = {
+            firstname: window.prompt("New name: "),
+            lastname: window.prompt("New surname: "),
+            emailaddress1: window.prompt("New email: "),
+            telephone1: window.prompt("New phone: ")
+        };   
+        webapi.safeAjax({
+		type: "POST",
+		url: "/_api/contacts",
+		contentType: "application/json",
+		data: JSON.stringify(newUser),
+		success: function (res, status, xhr) {
+			console.log("entityID: "+ xhr.getResponseHeader("entityid"));
+            console.log("New record created");
+            $("#statusMessageField").html("New record created");
+		},
+        error: function (XMLHttpRequest, textStatus, errorThrown) {
+            $("#statusMessageField").html(XMLHttpRequest.responseJSON.error.innererror.message);
+        }
+	});     
+    };
+    function update(x){       
+        let rowId = $(x).closest(".test").attr('id');
+        fname = $("*[id='firstname|"+rowId+"']").value;
+        lname = $("*[id='lastname|"+rowId+"']").value;
+        eadress = $("*[id='email|"+rowId+"']").value;
+        phone = $("*[id='phone|"+rowId+"']").value;
+        
+        let newUser = {
+            firstname: fname,
+            lastname: lname,
+            emailaddress1: eadress,
+            telephone1: phone
+        };     
+
+        if($("tr[id='"+rowId+"']").find("div.has-error").length !== 0){
+            $("#statusMessageField").html("Wrong input. Change marked fields and try again");
+        }
+        else{     
+            webapi.safeAjax({
+        type: "PATCH",
+        url: "/_api/contacts(" + rowId + ")",
+        contentType: "application/json",
+        data: JSON.stringify(newUser),
+        success: function (res) {
+            console.log(res);
+            console.log("Record updated");
+            $("#statusMessageField").html("New record created");                       
+        },
+        error: function (XMLHttpRequest, textStatus, errorThrown) {
+            $("#statusMessageField").html(XMLHttpRequest.responseJSON.error.innererror.message);
+        }
+    });  
+    }; 
+    };
+    function del(x){
+        let rowId = $(x).closest(".test").attr('id');
+        webapi.safeAjax({
+		type: "DELETE",
+		url: "/_api/contacts(" + rowId + ")",
+		contentType: "application/json",
+		success: function (res) {
+            $("#statusMessageField").html("Record deleted");
+            document.location.reload();            
+		},
+        error: function (XMLHttpRequest, textStatus, errorThrown) {
+            $("#statusMessageField").html(XMLHttpRequest.responseJSON.error.innererror.message);
+        }
+        });
+    };
+    function validate(inputType){
+        let letters = '';
+        if(inputType=='name'){
+            letters = /^[A-Za-z]+$/;
+        }
+        else if(inputType=='email'){
+            letters = /\S+@\S+\.\S+/;
+        }
+        else if(inputType=='phone'){
+            letters = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/im;
+        };
+        let id = event.target.id;
+        if(document.getElementById(id).value.match(letters)){
+            let div = $("*[id='"+id+"']").closest("div");
+            div.removeClass("has-error");
+            div.addClass("has-success has-feedback");
+            $("*[id='glyph"+id+"']").remove();
+            div.append('<span id="glyph'+id+'" class="glyphicon glyphicon-ok form-control-feedback" style="color:green"></span>');
+            return false;
+        }
+        else{
+            let div = $("*[id='"+id+"']").closest("div");
+            div.addClass("has-error has-feedback");
+            div.removeClass("has-success");
+            $("*[id='glyph"+id+"']").remove();
+            div.append('<span id="glyph'+id+'" class="glyphicon glyphicon-remove form-control-feedback" style="color:red"></span>');
+            return true;
+        }
+    };    
+</script>
